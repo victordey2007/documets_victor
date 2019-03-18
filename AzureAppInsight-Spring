@@ -1,0 +1,116 @@
+#Azure App insight and Spring service Integration ( four steps) 
+
+Please follow the below four steps  to implement the app insight in spring service
+
+Instruction to Integrate Azure Appinsight with Spring service
+
+1.	Add the depedency
+                compile('com.microsoft.azure:applicationinsights-web:2.1.2')
+    compile group: 'com.microsoft.azure', name: 'applicationinsights-logging-logback', version: '2.1.2'
+
+2.	Create one configuration 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+
+import com.microsoft.applicationinsights.TelemetryConfiguration;
+import com.microsoft.applicationinsights.web.internal.WebRequestTrackingFilter;
+
+@Configuration
+public class AppInsightsConfig {
+              
+              
+              @Value("${azure.insight.instrumentationkey}")
+              private String APPLICATION_INSIGHTS_IKEY;
+
+              //Initialize AI TelemetryConfiguration via Spring Beans
+    @Bean
+    public String telemetryConfig() {
+        String telemetryKey = System.getenv(APPLICATION_INSIGHTS_IKEY);
+        if (telemetryKey != null) {
+            TelemetryConfiguration.getActive().setInstrumentationKey(telemetryKey);
+        }
+        return telemetryKey;
+    }
+
+    //Set AI Web Request Tracking Filter
+    @Bean
+    public FilterRegistrationBean<WebRequestTrackingFilter> aiFilterRegistration(@Value("${spring.application.name:application}") String applicationName) {
+       FilterRegistrationBean<WebRequestTrackingFilter> registration = new FilterRegistrationBean<>();
+       registration.setFilter(new WebRequestTrackingFilter(applicationName));
+       registration.setName("webRequestTrackingFilter");
+       registration.addUrlPatterns("/*");
+       registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+       return registration;
+   } 
+
+    //Set up AI Web Request Tracking Filter
+    @Bean(name = "WebRequestTrackingFilter")
+    public Filter webRequestTrackingFilter(@Value("${spring.application.name:application}") String applicationName) {
+        return new WebRequestTrackingFilter(applicationName);
+    }         
+}
+
+3.	Create log-back.xml in resource folder 
+
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="aiAppender" 
+        class="com.microsoft.applicationinsights.logback.ApplicationInsightsAppender">
+    </appender>
+    <root level="trace">
+        <appender-ref ref="aiAppender" />
+    </root>
+
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+    <logger name="org.springframework.web" level="DEBUG"/>
+</configuration>
+
+4.	Create ApplicationInsights.xml in resource folder 
+
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationInsights
+        xmlns="http://schemas.microsoft.com/ApplicationInsights/2013/Settings"
+              schemaVersion="2014-05-30">
+
+
+              <!-- The key from the portal: -->
+
+<InstrumentationKey>{azure.insight.instrumentationkey}</InstrumentationKey>
+              <ContextInitializers>
+                             <Add
+                                           type="com.jetblue.jbms.api.config.AppInfoContextInitializer"/>
+              </ContextInitializers>
+
+              <!-- HTTP request component (not required for bare API) -->
+
+              <TelemetryModules>
+                             <Add
+                             type="com.microsoft.applicationinsights.web.extensibility.modules.WebRequestTrackingTelemetryModule" />
+                             <Add
+                             type="com.microsoft.applicationinsights.web.extensibility.modules.WebSessionTrackingTelemetryModule" />
+                             <Add
+                             type="com.microsoft.applicationinsights.web.extensibility.modules.WebUserTrackingTelemetryModule" />
+              </TelemetryModules>
+
+              <!-- Events correlation (not required for bare API) -->
+              <!-- These initializers add context data to each event -->
+
+              <TelemetryInitializers>
+                             <Add
+                             type="com.microsoft.applicationinsights.web.extensibility.initializers.WebOperationIdTelemetryInitializer" />
+                             <Add
+                             type="com.microsoft.applicationinsights.web.extensibility.initializers.WebOperationNameTelemetryInitializer" />
+                             <Add
+                             type="com.microsoft.applicationinsights.web.extensibility.initializers.WebSessionTelemetryInitializer" />
+                             <Add
+                             type="com.microsoft.applicationinsights.web.extensibility.initializers.WebUserTelemetryInitializer" />
+                             <Add
+                             type="com.microsoft.applicationinsights.web.extensibility.initializers.WebUserAgentTelemetryInitializer" />
+
+              </TelemetryInitializers>
+</ApplicationInsights>   
+
+
